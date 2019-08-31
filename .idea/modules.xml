@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/aws_image_service.iml" filepath="$PROJECT_DIR$/.idea/aws_image_service.iml" />
       <module fileurl="file://$PROJECT_DIR$/awsservice/awsservice.iml" filepath="$PROJECT_DIR$/awsservice/awsservice.iml" />
+      <module fileurl="file://$PROJECT_DIR$/awsservice_worker/awsserviceworker.iml" filepath="$PROJECT_DIR$/awsservice_worker/awsserviceworker.iml" />
     </modules>
   </component>
 </project>

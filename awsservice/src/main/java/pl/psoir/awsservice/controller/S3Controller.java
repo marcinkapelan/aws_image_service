@@ -7,7 +7,9 @@ import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ListObjectsV2Request;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.amazonaws.services.s3control.model.S3ObjectMetadata;
 import org.apache.http.entity.ContentType;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,17 +75,22 @@ public class S3Controller {
 
     @RequestMapping(method= RequestMethod.GET, value="/presignedurls")
     public ResponseEntity<?> getPresignedUrls() {
-        List<URL> urls = new ArrayList<>();
+        JSONArray urls = new JSONArray();
         S3Objects.inBucket(amazonS3Client, bucket).forEach((S3ObjectSummary objectSummary) -> {
             String fileName = objectSummary.getKey();
+            Long fileSize = objectSummary.getSize();
             GeneratePresignedUrlRequest generatePresignedUrlRequest = new GeneratePresignedUrlRequest(bucket, fileName)
                     .withMethod(HttpMethod.GET)
                     .withExpiration(generateExpirationDate(1200000)); //20 minutes
             URL url = amazonS3Client.generatePresignedUrl(generatePresignedUrlRequest);
-            urls.add(url);
+            urls.put(new JSONObject()
+                    .put("url", url)
+                    .put("size", fileSize)
+            );
         });
-        logger.info("getPresignedUrls(): Created " + urls.size() + " urls");
-        return new ResponseEntity<>(urls, HttpStatus.OK);
+        System.out.println(urls);
+        logger.info("getPresignedUrls(): Created " + urls.length() + " urls");
+        return new ResponseEntity<>(urls.toString(), HttpStatus.OK);
     }
 
     @RequestMapping(method= RequestMethod.GET, value="/presignedpost")

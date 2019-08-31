@@ -29,18 +29,20 @@ class App extends Component {
         axios.get(baseUrl + "/presignedurls")
             .then((response) => {
                 console.log(response);
-                //alert(response.data.length);
+                alert(response.data.length);
                 response.data.forEach((item) => {
-                        let imageFullName = item.match(".amazonaws.com\/(.*)\\?X-Amz-Algorithm")[1];
+                        let imageFullName = item.url.match(".amazonaws.com\/(.*)\\?X-Amz-Algorithm")[1];
                         let imageName = imageFullName.substring(imageFullName.indexOf("_") + 1);
+                        alert(item.url);
 
                         let imageData = {
-                            src: item,
-                            thumbnail: item,
+                            src: item.url,
+                            thumbnail: item.url,
                             thumbnailWidth: 400,
                             thumbnailHeight: 300,
                             isSelected: false,
-                            caption: imageName,
+                            caption: imageName + " Size: " + Math.floor(item.size / 1024) + "KB",
+                            size: item.size
                         }
 
                         this.setState({
