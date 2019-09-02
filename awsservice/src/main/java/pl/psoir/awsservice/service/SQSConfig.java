@@ -5,27 +5,28 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.sqs.AmazonSQS;
+import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-
 @Configuration
-public class S3Config {
+public class SQSConfig {
 
-    @Value("${aws.s3.accessKey}")
+    @Value("${aws.sqs.accessKey}")
     private String accessKey;
 
-    @Value("${aws.s3.secretKey}")
+    @Value("${aws.sqs.secretKey}")
     private String secretKey;
 
-    @Value("${aws.s3.region}")
+    @Value("${aws.sqs.region}")
     private String region;
 
     @Bean
-    public AmazonS3 awsS3Client() {
+    public AmazonSQS awsSQSClient() {
         BasicAWSCredentials awsCredentials = new BasicAWSCredentials(accessKey, secretKey);
-        return AmazonS3ClientBuilder.standard().withRegion(Regions.fromName(region))
+        return AmazonSQSClientBuilder.standard().withRegion(Regions.fromName(region))
                 .withCredentials(new AWSStaticCredentialsProvider(awsCredentials)).build();
     }
 }

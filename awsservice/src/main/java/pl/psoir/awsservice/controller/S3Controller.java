@@ -36,16 +36,16 @@ public class S3Controller {
     @Autowired
     private AmazonS3 amazonS3Client;
 
-    @Value("${aws.bucket}")
+    @Value("${aws.s3.bucket}")
     private String bucket;
 
-    @Value("${aws.accessKey}")
+    @Value("${aws.s3.accessKey}")
     private String accessKey;
 
-    @Value("${aws.secretKey}")
+    @Value("${aws.s3.secretKey}")
     private String secretKey;
 
-    @Value("${aws.region}")
+    @Value("${aws.s3.region}")
     private String region;
 
     @RequestMapping(method= RequestMethod.GET, value="/presignedurl")
@@ -88,7 +88,6 @@ public class S3Controller {
                     .put("size", fileSize)
             );
         });
-        System.out.println(urls);
         logger.info("getPresignedUrls(): Created " + urls.length() + " urls");
         return new ResponseEntity<>(urls.toString(), HttpStatus.OK);
     }
