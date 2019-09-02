@@ -3,6 +3,7 @@ import 'bootstrap/dist/js/bootstrap.bundle.min';
 import React, { Component } from 'react';
 import axios from 'axios';
 import Gallery from "react-grid-gallery";
+import ResizeDialog from './ResizeDialog';
 
 const baseUrl = "http://localhost:8080";
 
@@ -13,7 +14,9 @@ class App extends Component {
         this.state = {
             selectedFile: null,
             images: [],
-            selectedImages: false
+            selectedImages: false,
+
+            resizeDialogOpened: false
         }
         this.fetchImageUrlsFromS3 = this.fetchImageUrlsFromS3.bind(this);
     };
@@ -76,22 +79,21 @@ class App extends Component {
         })
     };
 
-    OnResizeClickHandler = () => {
+    onResizeClickHandler = (width, height) => {
         const MAX_FILESSIZE_PER_MESSAGE = 25000000;
         let messages = [];
 
         let filesSizeSum = 0;
-        let message = {command: "RESIZE", files: []};
+        let message = {command: "RESIZE", width: width, height: height, files: []};
         this.state.images.forEach((item) => {
             if (item.isSelected) {
                 if (filesSizeSum + item.size > MAX_FILESSIZE_PER_MESSAGE) {
                     messages.push(message);
-                    message = {command: "RESIZE", files: []};
+                    message = {command: "RESIZE", width: width, height: height, files: []};
                 }
 
                 message.files.push({
                     name: item.name,
-                    size: item.size,
                 });
                 filesSizeSum += item.size;
             }
@@ -109,6 +111,12 @@ class App extends Component {
                 console.log(error);
             })
     }
+
+    resizeDialogToggle = event => {
+        this.setState({
+            resizeDialogOpened: !this.state.resizeDialogOpened
+        })
+    };
 
     onFileChangeHandler = event => {
         console.log(event.target.files[0]);
@@ -168,7 +176,7 @@ class App extends Component {
                         <button type="button" className="btn btn-success" onClick = {this.onUploadClickHandler}>Upload</button>
                     </div>
                     <div className="col-md-1 offset-md-7">
-                        <button type="button" className="btn btn-primary" disabled={!this.state.selectedImages} onClick = {this.OnResizeClickHandler}>Resize</button>
+                        <button type="button" className="btn btn-primary" disabled={!this.state.selectedImages} onClick = {() => this.setState({resizeDialogOpened: true})}>Resize</button>
                     </div>
                 </div>
                 <div className="mt-3 row">
@@ -176,6 +184,7 @@ class App extends Component {
                         <Gallery images={this.state.images} onSelectImage={this.onImageSelected}/>
                     </div>
                 </div>
+                <ResizeDialog open = {this.state.resizeDialogOpened} toggle = {this.resizeDialogToggle} onOkClicked = {this.onResizeClickHandler}></ResizeDialog>
             </div>
         );
     }
