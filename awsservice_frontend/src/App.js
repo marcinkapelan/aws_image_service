@@ -84,12 +84,12 @@ class App extends Component {
         let messages = [];
 
         let filesSizeSum = 0;
-        let message = {command: "RESIZE", width: width, height: height, files: []};
+        let message = {command: "RESIZE", width: width / 100, height: height / 100, files: []};
         this.state.images.forEach((item) => {
             if (item.isSelected) {
                 if (filesSizeSum + item.size > MAX_FILESSIZE_PER_MESSAGE) {
                     messages.push(message);
-                    message = {command: "RESIZE", width: width, height: height, files: []};
+                    message = {command: "RESIZE", width: width / 100, height: height / 100, files: []};
                 }
 
                 message.files.push({
