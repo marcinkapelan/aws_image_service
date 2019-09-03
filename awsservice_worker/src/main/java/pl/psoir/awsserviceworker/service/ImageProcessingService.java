@@ -50,8 +50,8 @@ public class ImageProcessingService {
             g2d.dispose();
 
             putImageToS3(outputImage, key);
-            deleteMessage(receiptHandle);
         }
+        deleteMessage(receiptHandle);
     }
 
     private BufferedImage getImageFromS3(String key) {
