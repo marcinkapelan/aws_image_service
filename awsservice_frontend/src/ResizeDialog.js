@@ -24,17 +24,18 @@ class ResizeDialog extends Component {
         this.setState({
             height: e.target.value
         })
-    }
+    };
 
     okClickHandler = () => {
-        if (this.state.width < 0 || this.state.height < 0) {
-            alert("Scale ratio cannot be negative")
+        if (this.state.width < 1 || this.state.height < 1
+            || this.state.width > 1000 || this.state.height > 1000) {
+            alert("Values must by within the range 1-1000%")
         }
         else {
             this.props.onOkClicked(this.state.width, this.state.height);
             this.props.toggle();
         }
-    }
+    };
 
     render() {
         return (
@@ -44,12 +45,12 @@ class ResizeDialog extends Component {
                     <ModalBody>
                         Width:
                         <InputGroup>
-                            <Input defaultValue={this.state.width} min={0} max={10000} onChange={this.widthChangeHandler} type="number" step="1" />
+                            <Input defaultValue={this.state.width} min={1} max={1000} onChange={this.widthChangeHandler} type="number" step="1" />
                             <InputGroupAddon addonType="append">%</InputGroupAddon>
                         </InputGroup>
                         Height:
                         <InputGroup>
-                            <Input defaultValue={this.state.height} min={0} max={10000} onChange={this.heightChangeHandler}  type="number" step="1" />
+                            <Input defaultValue={this.state.height} min={1} max={1000} onChange={this.heightChangeHandler}  type="number" step="1" />
                             <InputGroupAddon addonType="append">%</InputGroupAddon>
                         </InputGroup>
                     </ModalBody>
