@@ -27,8 +27,13 @@ class ResizeDialog extends Component {
     }
 
     okClickHandler = () => {
-        this.props.onOkClicked(this.state.width, this.state.height);
-        this.props.toggle();
+        if (this.state.width < 0 || this.state.height < 0) {
+            alert("Scale ratio cannot be negative")
+        }
+        else {
+            this.props.onOkClicked(this.state.width, this.state.height);
+            this.props.toggle();
+        }
     }
 
     render() {
