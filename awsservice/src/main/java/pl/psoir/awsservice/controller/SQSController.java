@@ -5,7 +5,9 @@ import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.model.SendMessageBatchRequest;
 import com.amazonaws.services.sqs.model.SendMessageBatchRequestEntry;
 import com.amazonaws.services.sqs.model.SendMessageBatchResult;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,20 +33,43 @@ public class SQSController {
 
     @RequestMapping(method= RequestMethod.POST, value="/queue")
     public ResponseEntity<?> postToQueue(@RequestBody String messages) {
-        JSONArray messagesJson = new JSONArray(messages);
+        SendMessageBatchRequestEntry[] sendMessageBatchRequests;
 
-        SendMessageBatchRequestEntry[] sendMessageBatchRequests = new SendMessageBatchRequestEntry[messagesJson.length()];
-        for (int i = 0; i < messagesJson.length(); i++) {
-            sendMessageBatchRequests[i] = new SendMessageBatchRequestEntry(UUID.randomUUID().toString(),
-                    messagesJson.getJSONObject(i).toString());
+        try {
+            JSONArray messagesJson = new JSONArray(messages);
+
+            sendMessageBatchRequests = new SendMessageBatchRequestEntry[messagesJson.length()];
+            for (int i = 0; i < messagesJson.length(); i++) {
+                sendMessageBatchRequests[i] = new SendMessageBatchRequestEntry(UUID.randomUUID().toString(),
+                        messagesJson.getJSONObject(i).toString());
+            }
+        }
+        catch (JSONException e) {
+            logger.error("Exception when parsing messages into SendMessageBatchRequestEntry array" +
+                    "\n   Messages:       \n" +
+                    messages +
+                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e));
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
-        String queueUrl = amazonSQSClient.getQueueUrl(queue).getQueueUrl();
-        SendMessageBatchRequest sendMessageBatchRequest = new SendMessageBatchRequest()
-                .withQueueUrl(queueUrl)
-                .withEntries(sendMessageBatchRequests);
-        SendMessageBatchResult result = amazonSQSClient.sendMessageBatch(sendMessageBatchRequest);
-        HttpStatus httpStatus = (result.getFailed().size() > 0) ? HttpStatus.INTERNAL_SERVER_ERROR : HttpStatus.OK;
-        return new ResponseEntity<>(httpStatus);
+        try {
+            String queueUrl = amazonSQSClient.getQueueUrl(queue).getQueueUrl();
+            SendMessageBatchRequest sendMessageBatchRequest = new SendMessageBatchRequest()
+                    .withQueueUrl(queueUrl)
+                    .withEntries(sendMessageBatchRequests);
+            SendMessageBatchResult result = amazonSQSClient.sendMessageBatch(sendMessageBatchRequest);
+            if (result.getFailed().size() > 0) {
+                throw new RuntimeException("Failed sending" + result.getFailed().size() + "messages");
+            }
+            HttpStatus httpStatus = (result.getFailed().size() > 0) ? HttpStatus.INTERNAL_SERVER_ERROR : HttpStatus.OK;
+        }
+        catch (Exception e) {
+            logger.error("Exception when parsing messages into SendMessageBatchRequestEntry array" +
+                    "\n   Messages:       \n" +
+                    messages +
+                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e));
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+        return new ResponseEntity<>(HttpStatus.OK);
     }
 }

@@ -6,6 +6,7 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.services.sqs.AmazonSQS;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,10 +39,12 @@ public class ImageProcessingService {
 
     @Async
     public void scaleImages(float widthRatio, float heightRatio, List<String> keys, String receiptHandle) {
+        logger.info("Started processing scale request from message with receipt handle " + receiptHandle);
+        long _startTime = System.currentTimeMillis();
         for (String key : keys) {
             logger.info("Started processing scaling request for image with id " + key);
             long startTime = System.currentTimeMillis();
-            BufferedImage image = getImageFromS3(key);
+            BufferedImage image = getImageFromS3(key, receiptHandle);
             long downloadStopTime = System.currentTimeMillis();
 
             ///-------------Scaling------------
@@ -51,18 +54,31 @@ public class ImageProcessingService {
 
             int[] dimensions = adjustScaleRatio(scaledWidth, scaledHeight, image.getSampleModel().getNumDataElements());
 
-            BufferedImage outputImage = new BufferedImage(dimensions[0], dimensions[1], image.getType());
-            Graphics2D g2d = outputImage.createGraphics();
-            g2d.drawImage(image, 0, 0, dimensions[0], dimensions[1], null);
-            g2d.dispose();
+            BufferedImage outputImage;
+            try {
+                outputImage = new BufferedImage(dimensions[0], dimensions[1], image.getType());
+                Graphics2D g2d = outputImage.createGraphics();
+                g2d.drawImage(image, 0, 0, dimensions[0], dimensions[1], null);
+                g2d.dispose();
+            }
+            catch (Exception e) {
+                logger.error("Exception when scaling image with id " + key +
+                        "\n   Receipt handle:      " + receiptHandle +
+                        "\n   Source resolution:   " + image.getWidth() + "x" + image.getHeight() +
+                        "\n   Expected:            " + scaledWidth + "x" + scaledHeight +
+                        "\n   Adjusted:            " + dimensions[0] + "x" + dimensions[1] +
+                        "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e));
+                return;
+            }
             long scalingStopTime = System.currentTimeMillis();
             ///-------------Scaling------------
 
             long uploadStartTime = System.currentTimeMillis();
-            putImageToS3(outputImage, key);
+            putImageToS3(outputImage, key, receiptHandle);
             long uploadStopTime = System.currentTimeMillis();
 
             logger.info("Scaled image with id " + key +
+                    "\n   Receipt handle:      " + receiptHandle +
                     "\n   Source resolution:   " + image.getWidth() + "x" + image.getHeight() +
                     "\n   Expected:            " + scaledWidth + "x" + scaledHeight +
                     "\n   Adjusted:            " + dimensions[0] + "x" + dimensions[1] +
@@ -72,43 +88,55 @@ public class ImageProcessingService {
                     "\n   Total:               " + (uploadStopTime - startTime) + "ms");
         }
         deleteMessage(receiptHandle);
+        long stopTime = System.currentTimeMillis();
+        logger.info("Finished processing scale request from message with receipt handle " + receiptHandle +
+                "\n   Total time:          " + (stopTime - _startTime) + "ms");
     }
 
-    private BufferedImage getImageFromS3(String key) {
+    private BufferedImage getImageFromS3(String key, String receiptHandle) {
         BufferedImage image = null;
         try {
             S3Object object = amazonS3Client.getObject(bucket, key);
             S3ObjectInputStream s3ObjectInputStream = object.getObjectContent();
             image = ImageIO.read(s3ObjectInputStream);
-        } catch (AmazonServiceException e) {
-            System.err.println(e.getErrorMessage());
-        } catch (IOException e) {
-            System.err.println(e.getMessage());
+        } catch (AmazonServiceException | IOException e) {
+            logger.error("Exception when downloading image with id " + key +
+                    "\n   Receipt handle:      " + receiptHandle +
+                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e));
         }
         return image;
     }
 
-    private void putImageToS3(BufferedImage image, String key) {
+    private void putImageToS3(BufferedImage image, String key, String receiptHandle) {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         try {
             ImageIO.write(image, getImageExtension(key), byteArrayOutputStream);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        if (byteArrayOutputStream.size() == 0) {
-            logger.error("Image output stream size = 0");
-        }
-        else {
-            ObjectMetadata objectMetadata = new ObjectMetadata();
-            objectMetadata.setContentLength(byteArrayOutputStream.size());
-            InputStream inputStream = new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
-            amazonS3Client.putObject(bucket, key, inputStream, objectMetadata);
+
+            if (byteArrayOutputStream.size() == 0) {
+                throw new IllegalArgumentException("Image output stream size = 0");
+            }
+            else {
+                ObjectMetadata objectMetadata = new ObjectMetadata();
+                objectMetadata.setContentLength(byteArrayOutputStream.size());
+                InputStream inputStream = new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
+                amazonS3Client.putObject(bucket, key, inputStream, objectMetadata);
+            }
+        } catch (AmazonServiceException | IOException | IllegalArgumentException e) {
+            logger.error("Exception when uploading image with id " + key +
+                    "\n   Receipt handle:      " + receiptHandle +
+                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e));
         }
     }
 
     private void deleteMessage(String receiptHandle) {
-        String queueUrl = amazonSQSClient.getQueueUrl(queue).getQueueUrl();
-        amazonSQSClient.deleteMessage(queueUrl, receiptHandle);
+        try {
+            String queueUrl = amazonSQSClient.getQueueUrl(queue).getQueueUrl();
+            amazonSQSClient.deleteMessage(queueUrl, receiptHandle);
+        }
+        catch (AmazonServiceException e) {
+            logger.error("Exception when deleting message with receipt handle " + receiptHandle +
+                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e));
+        }
     }
 
     /*
