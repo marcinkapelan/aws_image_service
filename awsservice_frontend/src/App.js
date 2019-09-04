@@ -4,6 +4,10 @@ import React, { Component } from 'react';
 import axios from 'axios';
 import Gallery from "react-grid-gallery";
 import ResizeDialog from './ResizeDialog';
+import JSZip from "jszip"
+import JSZipUtils from "jszip-utils"
+import { saveAs } from 'file-saver';
+
 
 const baseUrl = "http://localhost:8080";
 
@@ -178,6 +182,39 @@ class App extends Component {
         postImageToS3Promises.push(axios.post(postData.url, formData))
     }
 
+    onDownloadClickHandler = () => {
+        let zip = new JSZip();
+        let name = "images.zip";
+
+        let imageDownloadPromises = [];
+
+        this.state.images.forEach((image) => {
+            if (image.isSelected) {
+                imageDownloadPromises.push(new Promise((resolve, reject) => JSZipUtils.getBinaryContent(image.src, (err, data) => {
+                    if(err) {
+                        reject(err);
+                    }
+                    else{
+                        let fullName = image.src.match(".amazonaws.com\/(.*)\\?X-Amz-Algorithm")[1];
+                        zip.file(fullName, data,  {binary:true});
+                        resolve();
+                    }
+                })));
+            }
+        });
+
+        Promise.all(imageDownloadPromises)
+            .then(() => {
+                zip.generateAsync({type:'blob'})
+                    .then((content) => {
+                        saveAs(content, name);
+                    });
+            })
+            .catch((error) => {
+                alert("Error downloading files:\n" + error)
+            })
+    };
+
     render() {
         return (
             <div className="container">
@@ -188,7 +225,10 @@ class App extends Component {
                     <div className="col-md-1 offset-md-2">
                         <button type="button" className="btn btn-success" onClick = {this.onUploadClickHandler}>Upload</button>
                     </div>
-                    <div className="col-md-1 offset-md-7">
+                    <div className="col-md-1 offset-md-5">
+                        <button type="button" className="btn btn-primary" disabled={!this.state.selectedImages} onClick = {this.onDownloadClickHandler}>Download</button>
+                    </div>
+                    <div className="col-md-1">
                         <button type="button" className="btn btn-primary" disabled={!this.state.selectedImages} onClick = {() => this.setState({resizeDialogOpened: true})}>Resize</button>
                     </div>
                 </div>
