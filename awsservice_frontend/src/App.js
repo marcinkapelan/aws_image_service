@@ -94,6 +94,7 @@ class App extends Component {
                 if (filesSizeSum + item.size > MAX_FILESSIZE_PER_MESSAGE) {
                     messages.push(message);
                     message = {command: "RESIZE", width: width / 100, height: height / 100, files: []};
+                    filesSizeSum = 0;
                 }
 
                 message.files.push({
