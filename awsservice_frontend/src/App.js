@@ -12,7 +12,8 @@ class App extends Component {
     constructor(props) {
         super(props);
         this.state = {
-            selectedFile: null,
+            selectedFiles: null,
+
             images: [],
             selectedImages: false,
 
@@ -26,7 +27,6 @@ class App extends Component {
     }
 
     fetchImageUrlsFromS3() {
-        let imagesUrls = [];
         this.setState({
             images: []
         });
@@ -118,51 +118,64 @@ class App extends Component {
         })
     };
 
-    onFileChangeHandler = event => {
-        console.log(event.target.files[0]);
+    onFilesChangeHandler = event => {
+        console.log(event.target.files);
         this.setState({
-            selectedFile: event.target.files[0]
+            selectedFiles: event.target.files
         })
     };
 
     onUploadClickHandler = event => {
-        if (this.state.selectedFile == null) {
+        if (this.state.selectedFiles == null) {
             alert("No file has been chosen");
         }
         else {
-            axios.get(baseUrl + "/presignedpost", {
-                params: {
-                    fileName: this.state.selectedFile.name,
-                }
-            })
-                .then(response => {
-                    this.postImageToS3(response.data)
+            let presignedPostPromises = [];
+            let postImageToS3Promises = [];
+            for (let i = 0; i < this.state.selectedFiles.length; i++) {
+                presignedPostPromises.push(axios.get(baseUrl + "/presignedpost", {
+                    params: {
+                        fileName: this.state.selectedFiles[i].name
+                    }
+                }));
+            }
+            axios.all(presignedPostPromises)
+                .then(responses => {
+                    responses.forEach((response) => {
+                        let file;
+                        for (let i = 0; i < this.state.selectedFiles.length; i++) {
+                            var responseFileName = response.data.fields.key;
+                            var responseShortFileName = responseFileName.substring(responseFileName.indexOf('_') + 1);
+                            if (responseShortFileName === this.state.selectedFiles[i].name) {
+                                file = this.state.selectedFiles[i];
+                            }
+                        }
+                        this.addPostImageToS3Promise(response.data, file, postImageToS3Promises)
+                    });
+                    axios.all(postImageToS3Promises)
+                        .then((responses) => {
+                            alert("Upload successful");
+                            this.fetchImageUrlsFromS3();
+                        })
+                        .catch((error) => {
+                            alert("Error uploading file:\n" + error);
+                        })
                 })
                 .catch(error => {
-                    alert(error);
+                    alert("Error fetching presigned post data:\n" + error);
                     console.log(error);
                 });
         }
-    }
+    };
 
-    postImageToS3(postData) {
+    addPostImageToS3Promise(postData, file, postImageToS3Promises) {
         console.log("postData.url: " + postData.url)
-        //alert(this.state.selectedFile.type);
         const formData = new FormData()
         Object.keys(postData.fields).forEach(key => {
             formData.append(key, postData.fields[key]);
         });
-        formData.append("file", this.state.selectedFile);
-        axios.post(postData.url, formData)
-            .then(response => {
-                this.fetchImageUrlsFromS3();
-                alert("Upload successful");
-                console.log(response);
-            })
-            .catch(error => {
-                alert("Error:" + error);
-                console.log(error);
-            });
+        formData.append("file", file);
+        postImageToS3Promises.push(axios.post(postData.url, formData))
     }
 
     render() {
@@ -170,7 +183,7 @@ class App extends Component {
             <div className="container">
                 <div className="row">
                     <div className="col-md-1">
-                        <input type = "file" name = "file" onChange = {this.onFileChangeHandler}/>
+                        <input type = "file" name = "file" onChange = {this.onFilesChangeHandler} multiple/>
                     </div>
                     <div className="col-md-1 offset-md-2">
                         <button type="button" className="btn btn-success" onClick = {this.onUploadClickHandler}>Upload</button>
