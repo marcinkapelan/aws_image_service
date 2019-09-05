@@ -48,16 +48,20 @@ public class S3Controller {
     @Value("${aws.s3.region}")
     private String region;
 
+    //Doesn't seem to work for delete requests..
     @RequestMapping(method= RequestMethod.GET, value="/presignedurl")
-    public ResponseEntity<?> getPresignedUrl(@RequestParam String fileName, @RequestParam String fileType, @RequestParam String httpMethod) {
+    public ResponseEntity<?> getPresignedUrl(@RequestParam String fileName, @RequestParam(required = false) String fileType, @RequestParam String httpMethod) {
         if (!httpMethod.toUpperCase().equals("GET") &&
                 !httpMethod.toUpperCase().equals("PUT") &&
                 !httpMethod.toUpperCase().equals("DELETE")) {
-            return new ResponseEntity<>("Invalid HTTP method. Accepted: GET, PUT, DELETE", HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>("Invalid httpMethod param. Accepted: GET, PUT, DELETE", HttpStatus.BAD_REQUEST);
+        }
+        if (httpMethod.toUpperCase().equals("PUT") && (fileType == null || fileType.isEmpty())) {
+            return new ResponseEntity<>("fileType param is required for PUT method", HttpStatus.BAD_REQUEST);
         }
         GeneratePresignedUrlRequest generatePresignedUrlRequest;
         URL url;
-        if (httpMethod.toUpperCase().equals("GET")) {
+        if (httpMethod.toUpperCase().equals("GET") || httpMethod.toUpperCase().equals("DELETE")) {
             generatePresignedUrlRequest = new GeneratePresignedUrlRequest(bucket, fileName)
                     .withMethod(HttpMethod.valueOf(httpMethod.toUpperCase()))
                     .withExpiration(generateExpirationDate(1200000)); //20 minutes
@@ -123,6 +127,12 @@ public class S3Controller {
                 new JSONObject()
                 .put("url", "https://s3." + region + ".amazonaws.com/" + bucket)
                 .put("fields", new JSONObject(policyMap.get(1))).toString(), HttpStatus.OK);
+    }
+
+    @RequestMapping(method= RequestMethod.DELETE, value="/object")
+    private ResponseEntity<?> object(@RequestParam String fileName) {
+        amazonS3Client.deleteObject(bucket, fileName);
+        return new ResponseEntity<>(HttpStatus.OK);
     }
 
     private String generateObjectKey(String fileName) {

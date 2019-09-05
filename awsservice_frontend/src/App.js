@@ -49,7 +49,7 @@ class App extends Component {
                             isSelected: false,
                             caption: name + " Size: " + Math.floor(item.size / 1024) + "KB",
                             size: item.size,
-                            name: fullName
+                            fullName: fullName
                         }
 
                         this.setState({
@@ -114,7 +114,7 @@ class App extends Component {
                 }
 
                 message.files.push({
-                    name: item.name,
+                    fullName: item.fullName,
                 });
                 filesSizeSum += item.size;
             }
@@ -156,7 +156,7 @@ class App extends Component {
             for (let i = 0; i < this.state.selectedFiles.length; i++) {
                 presignedPostPromises.push(axios.get(baseUrl + "/presignedpost", {
                     params: {
-                        fileName: this.state.selectedFiles[i].name
+                        fileName: this.state.selectedFiles[i].fullName
                     }
                 }));
             }
@@ -167,7 +167,7 @@ class App extends Component {
                         for (let i = 0; i < this.state.selectedFiles.length; i++) {
                             var responseFileName = response.data.fields.key;
                             var responseShortFileName = responseFileName.substring(responseFileName.indexOf('_') + 1);
-                            if (responseShortFileName === this.state.selectedFiles[i].name) {
+                            if (responseShortFileName === this.state.selectedFiles[i].fullName) {
                                 file = this.state.selectedFiles[i];
                             }
                         }
@@ -212,8 +212,7 @@ class App extends Component {
                         reject(err);
                     }
                     else{
-                        let fullName = image.src.match(".amazonaws.com\/(.*)\\?X-Amz-Algorithm")[1];
-                        zip.file(fullName, data,  {binary:true});
+                        zip.file(image.fullName, data,  {binary:true});
                         resolve();
                     }
                 })));
@@ -230,6 +229,29 @@ class App extends Component {
             .catch((error) => {
                 alert("Error downloading files:\n" + error)
             })
+    };
+
+    onDeleteClickHandler = () => {
+        let deleteS3ImagesPromises = [];
+        this.state.images.forEach((image) => {
+            if (image.isSelected) {
+                deleteS3ImagesPromises.push(axios.delete(baseUrl + "/object", {
+                    params: {
+                        fileName: image.fullName
+                    }
+                }));
+            }
+        });
+        axios.all(deleteS3ImagesPromises)
+            .then(responses => {
+                alert("Delete successful");
+                this.fetchImageUrlsFromS3();
+            })
+            .catch(error => {
+                alert("Error deleting file:\n" + error);
+                console.log(error);
+            });
+
     };
 
     render() {
@@ -249,7 +271,7 @@ class App extends Component {
                         <button type="button" className="btn btn-primary" disabled={!this.state.selectedImages} onClick = {this.onDownloadClickHandler}>Download</button>
                     </div>
                     <div className="col-md-auto mt-1">
-                        <button type="button" className="btn btn-danger" disabled={!this.state.selectedImages} onClick = {() => alert("TODO")}>Delete</button>
+                        <button type="button" className="btn btn-danger" disabled={!this.state.selectedImages} onClick = {this.onDeleteClickHandler}>Delete</button>
                     </div>
                     <div className="col-md-auto mt-1">
                         <button type="button" className="btn btn-primary" disabled={!this.state.selectedImages} onClick = {() => this.setState({resizeDialogOpened: true})}>Resize</button>
