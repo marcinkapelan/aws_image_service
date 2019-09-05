@@ -1,6 +1,8 @@
 package pl.psoir.awsserviceworker.service;
 
 import com.amazonaws.AmazonServiceException;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
@@ -13,11 +15,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import pl.psoir.awsserviceworker.model.DebugData;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.util.Date;
 import java.util.List;
 
 @Service
@@ -30,6 +34,9 @@ public class ImageProcessingService {
 
     @Autowired
     private AmazonSQS amazonSQSClient;
+
+    @Autowired
+    private AmazonDynamoDB amazonDynamoDBClient;
 
     @Value("${aws.s3.bucket}")
     private String bucket;
@@ -62,12 +69,15 @@ public class ImageProcessingService {
                 g2d.dispose();
             }
             catch (Exception e) {
-                logger.error("Exception when scaling image with id " + key +
+                String message = "Exception when scaling image with id " + key +
                         "\n   Receipt handle:      " + receiptHandle +
                         "\n   Source resolution:   " + image.getWidth() + "x" + image.getHeight() +
                         "\n   Expected:            " + scaledWidth + "x" + scaledHeight +
                         "\n   Adjusted:            " + dimensions[0] + "x" + dimensions[1] +
-                        "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e));
+                        "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e);
+                logger.error(message);
+                new DynamoDBMapper(amazonDynamoDBClient)
+                        .save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.ERROR, message));
                 return;
             }
             long scalingStopTime = System.currentTimeMillis();
@@ -77,7 +87,7 @@ public class ImageProcessingService {
             putImageToS3(outputImage, key, receiptHandle);
             long uploadStopTime = System.currentTimeMillis();
 
-            logger.info("Scaled image with id " + key +
+            String message = "Scaled image with id " + key +
                     "\n   Receipt handle:      " + receiptHandle +
                     "\n   Source resolution:   " + image.getWidth() + "x" + image.getHeight() +
                     "\n   Expected:            " + scaledWidth + "x" + scaledHeight +
@@ -85,12 +95,18 @@ public class ImageProcessingService {
                     "\n   Download time:       " + (downloadStopTime - startTime) + "ms" +
                     "\n   Scaling time:        " + (scalingStopTime - scalingStartTime) + "ms" +
                     "\n   Upload time:         " + (uploadStopTime - uploadStartTime) + "ms" +
-                    "\n   Total:               " + (uploadStopTime - startTime) + "ms");
+                    "\n   Total:               " + (uploadStopTime - startTime) + "ms";
+            logger.info(message);
+            new DynamoDBMapper(amazonDynamoDBClient)
+                    .save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.INFO, message));
         }
         deleteMessage(receiptHandle);
         long stopTime = System.currentTimeMillis();
-        logger.info("Finished processing scale request from message with receipt handle " + receiptHandle +
-                "\n   Total time:          " + (stopTime - _startTime) + "ms");
+        String message = "Finished processing scale request from message with receipt handle " + receiptHandle +
+                "\n   Total time:          " + (stopTime - _startTime) + "ms";
+        logger.info(message);
+        new DynamoDBMapper(amazonDynamoDBClient)
+                .save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.INFO, message));
     }
 
     private BufferedImage getImageFromS3(String key, String receiptHandle) {
@@ -100,9 +116,12 @@ public class ImageProcessingService {
             S3ObjectInputStream s3ObjectInputStream = object.getObjectContent();
             image = ImageIO.read(s3ObjectInputStream);
         } catch (AmazonServiceException | IOException e) {
-            logger.error("Exception when downloading image with id " + key +
+            String message = "Exception when downloading image with id " + key +
                     "\n   Receipt handle:      " + receiptHandle +
-                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e));
+                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e);
+            logger.error(message);
+            new DynamoDBMapper(amazonDynamoDBClient)
+                    .save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.ERROR, message));
         }
         return image;
     }
@@ -122,9 +141,12 @@ public class ImageProcessingService {
                 amazonS3Client.putObject(bucket, key, inputStream, objectMetadata);
             }
         } catch (AmazonServiceException | IOException | IllegalArgumentException e) {
-            logger.error("Exception when uploading image with id " + key +
+            String message = "Exception when uploading image with id " + key +
                     "\n   Receipt handle:      " + receiptHandle +
-                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e));
+                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e);
+            logger.error(message);
+            new DynamoDBMapper(amazonDynamoDBClient)
+                    .save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.ERROR, message));
         }
     }
 
@@ -134,8 +156,11 @@ public class ImageProcessingService {
             amazonSQSClient.deleteMessage(queueUrl, receiptHandle);
         }
         catch (AmazonServiceException e) {
-            logger.error("Exception when deleting message with receipt handle " + receiptHandle +
-                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e));
+            String message = "Exception when deleting message with receipt handle " + receiptHandle +
+                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e);
+            logger.error(message);
+            new DynamoDBMapper(amazonDynamoDBClient)
+                    .save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.ERROR, message));
         }
     }
 

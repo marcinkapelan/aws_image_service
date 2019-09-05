@@ -1,6 +1,8 @@
 package pl.psoir.awsservice.controller;
 
 import com.amazonaws.HttpMethod;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.model.SendMessageBatchRequest;
 import com.amazonaws.services.sqs.model.SendMessageBatchRequestEntry;
@@ -15,7 +17,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import pl.psoir.awsservice.model.DebugData;
 
+import java.util.Date;
 import java.util.UUID;
 
 
@@ -27,6 +31,9 @@ public class SQSController {
 
     @Autowired
     private AmazonSQS amazonSQSClient;
+
+    @Autowired
+    private AmazonDynamoDB amazonDynamoDBClient;
 
     @Value("${aws.sqs.queue}")
     private String queue;
@@ -45,10 +52,12 @@ public class SQSController {
             }
         }
         catch (JSONException e) {
-            logger.error("Exception when parsing messages into SendMessageBatchRequestEntry array" +
+            String message = "Exception when parsing messages into SendMessageBatchRequestEntry array" +
                     "\n   Messages:       \n" +
                     messages +
-                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e));
+                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e);
+            logger.error(message);
+            new DynamoDBMapper(amazonDynamoDBClient).save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.ERROR, message));
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
@@ -64,10 +73,12 @@ public class SQSController {
             HttpStatus httpStatus = (result.getFailed().size() > 0) ? HttpStatus.INTERNAL_SERVER_ERROR : HttpStatus.OK;
         }
         catch (Exception e) {
-            logger.error("Exception when parsing messages into SendMessageBatchRequestEntry array" +
+            String message = "Exception when sending messages to queue" +
                     "\n   Messages:       \n" +
                     messages +
-                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e));
+                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e);
+            logger.error(message);
+            new DynamoDBMapper(amazonDynamoDBClient).save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.ERROR, message));
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
         return new ResponseEntity<>(HttpStatus.OK);
