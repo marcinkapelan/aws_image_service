@@ -83,6 +83,22 @@ class App extends Component {
         })
     };
 
+    onSelectAllClickHandler = () => {
+        var images = this.state.images.slice();
+
+        this.setState({
+            selectedImages: !this.state.selectedImages
+        }, () => {
+            images.forEach((item) => {
+                item.isSelected = this.state.selectedImages
+            });
+            this.setState({
+                images: images
+            })
+        });
+
+    }
+
     onResizeClickHandler = (width, height) => {
         const MAX_FILESSIZE_PER_MESSAGE = 25000000;
         let messages = [];
@@ -220,16 +236,22 @@ class App extends Component {
         return (
             <div className="container">
                 <div className="row">
-                    <div className="col-md-1">
+                    <div className="col-md-auto mt-1">
                         <input type = "file" name = "file" onChange = {this.onFilesChangeHandler} multiple/>
                     </div>
-                    <div className="col-md-1 offset-md-2">
+                    <div className="col-md-2 mt-1 ml-md-5">
                         <button type="button" className="btn btn-success" onClick = {this.onUploadClickHandler}>Upload</button>
                     </div>
-                    <div className="col-md-1 offset-md-5">
+                    <div className="col-md-auto mt-1">
+                        <button type="button" className="btn btn-primary" onClick = {this.onSelectAllClickHandler}>{!this.state.selectedImages ? "Select all" : "Unselect all"}</button>
+                    </div>
+                    <div className="col-md-auto mt-1">
                         <button type="button" className="btn btn-primary" disabled={!this.state.selectedImages} onClick = {this.onDownloadClickHandler}>Download</button>
                     </div>
-                    <div className="col-md-1">
+                    <div className="col-md-auto mt-1">
+                        <button type="button" className="btn btn-danger" disabled={!this.state.selectedImages} onClick = {() => alert("TODO")}>Delete</button>
+                    </div>
+                    <div className="col-md-auto mt-1">
                         <button type="button" className="btn btn-primary" disabled={!this.state.selectedImages} onClick = {() => this.setState({resizeDialogOpened: true})}>Resize</button>
                     </div>
                 </div>
