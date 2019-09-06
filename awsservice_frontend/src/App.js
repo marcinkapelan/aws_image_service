@@ -265,7 +265,7 @@ class App extends Component {
                         <button type="button" className="btn btn-success" onClick = {this.onUploadClickHandler}>Upload</button>
                     </div>
                     <div className="col-md-auto mt-1">
-                        <button type="button" className="btn btn-primary" onClick = {this.onSelectAllClickHandler}>{!this.state.selectedImages ? "Select all" : "Unselect all"}</button>
+                        <button type="button" className="btn btn-primary" disabled={this.state.images.length === 0} onClick = {this.onSelectAllClickHandler}>{!this.state.selectedImages ? "Select all" : "Unselect all"}</button>
                     </div>
                     <div className="col-md-auto mt-1">
                         <button type="button" className="btn btn-primary" disabled={!this.state.selectedImages} onClick = {this.onDownloadClickHandler}>Download</button>
