@@ -38,7 +38,7 @@ class App extends Component {
             .then((response) => {
                 console.log(response);
                 response.data.forEach((item) => {
-                        let fullName = item.url.match(".amazonaws.com\/(.*)\\?X-Amz-Algorithm")[1];
+                        let fullName = decodeURI(item.url.match(".amazonaws.com\/(.*)\\?X-Amz-Algorithm")[1]);
                         let name = fullName.substring(fullName.indexOf("_") + 1);
 
                         let imageData = {
@@ -114,7 +114,7 @@ class App extends Component {
                 }
 
                 message.files.push({
-                    fullName: item.fullName,
+                    name: item.fullName,
                 });
                 filesSizeSum += item.size;
             }
@@ -156,7 +156,7 @@ class App extends Component {
             for (let i = 0; i < this.state.selectedFiles.length; i++) {
                 presignedPostPromises.push(axios.get(baseUrl + "/presignedpost", {
                     params: {
-                        fileName: this.state.selectedFiles[i].fullName
+                        fileName: this.state.selectedFiles[i].name
                     }
                 }));
             }
@@ -167,7 +167,7 @@ class App extends Component {
                         for (let i = 0; i < this.state.selectedFiles.length; i++) {
                             var responseFileName = response.data.fields.key;
                             var responseShortFileName = responseFileName.substring(responseFileName.indexOf('_') + 1);
-                            if (responseShortFileName === this.state.selectedFiles[i].fullName) {
+                            if (responseShortFileName === this.state.selectedFiles[i].name) {
                                 file = this.state.selectedFiles[i];
                             }
                         }
