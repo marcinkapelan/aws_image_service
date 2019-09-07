@@ -7,9 +7,8 @@ import ResizeDialog from './ResizeDialog';
 import JSZip from "jszip"
 import JSZipUtils from "jszip-utils"
 import { saveAs } from 'file-saver';
+import { baseUrl } from "./Constants";
 
-
-const baseUrl = "http://localhost:8080";
 
 class App extends Component {
 

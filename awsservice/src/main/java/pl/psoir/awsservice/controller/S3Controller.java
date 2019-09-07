@@ -28,7 +28,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 @RestController
-@CrossOrigin(origins = "http://localhost:3000", maxAge = 3600)
+@CrossOrigin(origins = {"${crossorigin.url}"}, maxAge = 3600)
 public class S3Controller {
 
     private static final Logger logger = LoggerFactory.getLogger(S3Controller.class);
@@ -130,7 +130,7 @@ public class S3Controller {
     }
 
     @RequestMapping(method= RequestMethod.DELETE, value="/object")
-    private ResponseEntity<?> object(@RequestParam String fileName) {
+    public ResponseEntity<?> object(@RequestParam String fileName) {
         amazonS3Client.deleteObject(bucket, fileName);
         return new ResponseEntity<>(HttpStatus.OK);
     }

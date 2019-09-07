@@ -294,4 +294,7 @@ typings/
 # Spring sensitive data
 **/resources/application.properties
 
+# React sensitive data
+**/Constants.js
+
 # End of https://www.gitignore.io/api/node,java,maven,eclipse,netbeans,intellij,java-web
