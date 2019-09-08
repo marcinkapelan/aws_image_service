@@ -51,7 +51,20 @@ public class ImageProcessingService {
         for (String key : keys) {
             logger.info("Started processing scaling request for image with id " + key);
             long startTime = System.currentTimeMillis();
-            BufferedImage image = getImageFromS3(key, receiptHandle);
+
+            ///-------------Downloading------------
+            BufferedImage image;
+            try {
+                image = getImageFromS3(key);
+            } catch (AmazonServiceException | IOException | OutOfMemoryError e) {
+                String message = "Exception when downloading image with id " + key +
+                        "\n   Receipt handle:      " + receiptHandle +
+                        "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e);
+                logger.error(message);
+                new DynamoDBMapper(amazonDynamoDBClient)
+                        .save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.ERROR, message));
+                return;
+            }
             long downloadStopTime = System.currentTimeMillis();
 
             ///-------------Scaling------------
@@ -81,10 +94,20 @@ public class ImageProcessingService {
                 return;
             }
             long scalingStopTime = System.currentTimeMillis();
-            ///-------------Scaling------------
 
+            ///-------------Uploading------------
             long uploadStartTime = System.currentTimeMillis();
-            putImageToS3(outputImage, key, receiptHandle);
+            try {
+                putImageToS3(outputImage, key);
+            } catch (AmazonServiceException | IOException | IllegalArgumentException | OutOfMemoryError e) {
+                String message = "Exception when uploading image with id " + key +
+                        "\n   Receipt handle:      " + receiptHandle +
+                        "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e);
+                logger.error(message);
+                new DynamoDBMapper(amazonDynamoDBClient)
+                        .save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.ERROR, message));
+                return;
+            }
             long uploadStopTime = System.currentTimeMillis();
 
             String message = "Scaled image with id " + key +
@@ -100,60 +123,10 @@ public class ImageProcessingService {
             new DynamoDBMapper(amazonDynamoDBClient)
                     .save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.INFO, message));
         }
-        deleteMessage(receiptHandle);
-        long stopTime = System.currentTimeMillis();
-        String message = "Finished processing scale request from message with receipt handle " + receiptHandle +
-                "\n   Total time:          " + (stopTime - _startTime) + "ms";
-        logger.info(message);
-        new DynamoDBMapper(amazonDynamoDBClient)
-                .save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.INFO, message));
-    }
 
-    private BufferedImage getImageFromS3(String key, String receiptHandle) {
-        BufferedImage image = null;
+        ///-------------Deleting the message------------
         try {
-            S3Object object = amazonS3Client.getObject(bucket, key);
-            S3ObjectInputStream s3ObjectInputStream = object.getObjectContent();
-            image = ImageIO.read(s3ObjectInputStream);
-        } catch (AmazonServiceException | IOException e) {
-            String message = "Exception when downloading image with id " + key +
-                    "\n   Receipt handle:      " + receiptHandle +
-                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e);
-            logger.error(message);
-            new DynamoDBMapper(amazonDynamoDBClient)
-                    .save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.ERROR, message));
-        }
-        return image;
-    }
-
-    private void putImageToS3(BufferedImage image, String key, String receiptHandle) {
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        try {
-            ImageIO.write(image, getImageExtension(key), byteArrayOutputStream);
-
-            if (byteArrayOutputStream.size() == 0) {
-                throw new IllegalArgumentException("Image output stream size = 0");
-            }
-            else {
-                ObjectMetadata objectMetadata = new ObjectMetadata();
-                objectMetadata.setContentLength(byteArrayOutputStream.size());
-                InputStream inputStream = new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
-                amazonS3Client.putObject(bucket, key, inputStream, objectMetadata);
-            }
-        } catch (AmazonServiceException | IOException | IllegalArgumentException e) {
-            String message = "Exception when uploading image with id " + key +
-                    "\n   Receipt handle:      " + receiptHandle +
-                    "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e);
-            logger.error(message);
-            new DynamoDBMapper(amazonDynamoDBClient)
-                    .save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.ERROR, message));
-        }
-    }
-
-    private void deleteMessage(String receiptHandle) {
-        try {
-            String queueUrl = amazonSQSClient.getQueueUrl(queue).getQueueUrl();
-            amazonSQSClient.deleteMessage(queueUrl, receiptHandle);
+            deleteMessage(receiptHandle);
         }
         catch (AmazonServiceException e) {
             String message = "Exception when deleting message with receipt handle " + receiptHandle +
@@ -162,6 +135,40 @@ public class ImageProcessingService {
             new DynamoDBMapper(amazonDynamoDBClient)
                     .save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.ERROR, message));
         }
+
+
+        long stopTime = System.currentTimeMillis();
+        String message = "Finished processing scale request from message with receipt handle " + receiptHandle +
+                "\n   Total time:          " + (stopTime - _startTime) + "ms";
+        logger.info(message);
+        new DynamoDBMapper(amazonDynamoDBClient)
+                .save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.INFO, message));
+    }
+
+    private BufferedImage getImageFromS3(String key) throws AmazonServiceException, IOException, OutOfMemoryError {
+        S3Object object = amazonS3Client.getObject(bucket, key);
+        S3ObjectInputStream s3ObjectInputStream = object.getObjectContent();
+        return ImageIO.read(s3ObjectInputStream);
+    }
+
+    private void putImageToS3(BufferedImage image, String key) throws AmazonServiceException, IOException, IllegalArgumentException, OutOfMemoryError {
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        ImageIO.write(image, getImageExtension(key), byteArrayOutputStream);
+
+        if (byteArrayOutputStream.size() == 0) {
+            throw new IllegalArgumentException("Image output stream size = 0");
+        }
+        else {
+            ObjectMetadata objectMetadata = new ObjectMetadata();
+            objectMetadata.setContentLength(byteArrayOutputStream.size());
+            InputStream inputStream = new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
+            amazonS3Client.putObject(bucket, key, inputStream, objectMetadata);
+        }
+    }
+
+    private void deleteMessage(String receiptHandle) throws AmazonServiceException {
+        String queueUrl = amazonSQSClient.getQueueUrl(queue).getQueueUrl();
+        amazonSQSClient.deleteMessage(queueUrl, receiptHandle);
     }
 
     /*
