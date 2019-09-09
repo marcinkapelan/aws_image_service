@@ -97,13 +97,19 @@ public class S3Controller {
     }
 
     @RequestMapping(method= RequestMethod.GET, value="/presignedpost")
-    public ResponseEntity<?> getPresignedPost(@RequestParam String fileName) {
+    public ResponseEntity<?> getPresignedPost(@RequestParam Map<String, String> params) {
+        String fileName = params.get("fileName");
+        if (fileName == null || fileName.isEmpty()) {
+            return new ResponseEntity<>("fileName is required parameter", HttpStatus.BAD_REQUEST);
+        }
+
         String objectKey = generateObjectKey(fileName);
         Date currentDate = new Date();
         Date expirationDate = generateExpirationDate(1200000); //20 minutes
+        params.remove("fileName"); // Leave only metadata
 
         String policy = S3Utils.createPolicy(expirationDate, bucket, accessKey,
-                currentDate, region, objectKey);
+                currentDate, region, objectKey, params);
         logger.info("Policy:\n" + policy);
 
         String policyBase64 = Base64.getEncoder().encodeToString(policy.getBytes());
@@ -118,7 +124,7 @@ public class S3Controller {
         logger.info("Signature: " + signature);
 
         ArrayList<Map<String, String>> policyMap = S3Utils.createPolicyMap(expirationDate, bucket, accessKey,
-                currentDate, region, objectKey);
+                currentDate, region, objectKey, params);
 
         policyMap.get(1).put(S3Utils.POLICY, policyBase64);
         policyMap.get(1).put(S3Utils.SIGNATURE, signature);

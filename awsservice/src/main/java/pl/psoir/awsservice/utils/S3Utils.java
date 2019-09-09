@@ -1,6 +1,8 @@
 package pl.psoir.awsservice.utils;
 
 import org.apache.commons.codec.binary.Hex;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -16,20 +18,26 @@ public class S3Utils {
     public static final String POLICY = "Policy";
     public static final String SIGNATURE = "X-Amz-Signature";
 
-    public static String createPolicy(Date expirationDate, String bucket, String accessKey, Date currentDate, String region, String key) {
-        return "{\"expiration\": \"" + ISO8601GMT(expirationDate) + "\",\n" +
-                "  \"conditions\": [\n" +
-                "    {\"bucket\": \"" + bucket + "\"},\n" +
-                "    {\"key\": \"" + key + "\"},\n" +
-                "\n" +
-                "    {\"x-amz-credential\": \"" + accessKey + "/" + YYYYMMDD(currentDate) + "/" + region + "/s3/aws4_request\"},\n" +
-                "    {\"x-amz-algorithm\": \"AWS4-HMAC-SHA256\"},\n" +
-                "    {\"x-amz-date\": \"" + ISO8601GMTSimple(currentDate) + "\" }\n" +
-                "  ]\n" +
-                "}";
+    public static String createPolicy(Date expirationDate, String bucket, String accessKey,
+                                      Date currentDate, String region, String key, Map<String, String> metadata) {
+        JSONArray conditions = new JSONArray();
+        conditions.put(new JSONObject().put("bucket", bucket));
+        conditions.put(new JSONObject().put("key", key));
+        conditions.put(new JSONObject().put("x-amz-credential", accessKey + "/" + YYYYMMDD(currentDate) + "/" + region + "/s3/aws4_request"));
+        conditions.put(new JSONObject().put("x-amz-algorithm", "AWS4-HMAC-SHA256"));
+        conditions.put(new JSONObject().put("x-amz-date", ISO8601GMTSimple(currentDate)));
+
+        for (Map.Entry<String, String> entry : metadata.entrySet()) {
+            conditions.put(new JSONObject().put("x-amz-meta-" + entry.getKey(), entry.getValue()));
+        }
+
+        return new JSONObject()
+                .put("expiration", ISO8601GMT(expirationDate))
+                .put("conditions", conditions).toString();
     }
 
-    public static ArrayList<Map<String, String>> createPolicyMap(Date expirationDate, String bucket, String accessKey, Date currentDate, String region, String key) {
+    public static ArrayList<Map<String, String>> createPolicyMap(Date expirationDate, String bucket, String accessKey,
+                                                                 Date currentDate, String region, String key, Map<String, String> metadata) {
         ArrayList<Map<String, String>> policy = new ArrayList<>();
         policy.add(new HashMap<>());
         policy.add(new HashMap<>());
@@ -40,6 +48,10 @@ public class S3Utils {
         policy.get(1).put("x-amz-credential", accessKey + "/" + YYYYMMDD(currentDate) + "/" + region + "/s3/aws4_request");
         policy.get(1).put("x-amz-algorithm", "AWS4-HMAC-SHA256");
         policy.get(1).put("x-amz-date", ISO8601GMTSimple(currentDate));
+
+        for (Map.Entry<String, String> entry : metadata.entrySet()) {
+            policy.get(1).put("x-amz-meta-" + entry.getKey(), entry.getValue());
+        }
 
         return policy;
     }
