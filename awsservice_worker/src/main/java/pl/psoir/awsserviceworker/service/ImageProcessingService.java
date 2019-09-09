@@ -22,7 +22,9 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ImageProcessingService {
@@ -98,7 +100,7 @@ public class ImageProcessingService {
             ///-------------Uploading------------
             long uploadStartTime = System.currentTimeMillis();
             try {
-                putImageToS3(outputImage, key);
+                putImageToS3(outputImage, key, dimensions);
             } catch (AmazonServiceException | IOException | IllegalArgumentException | OutOfMemoryError e) {
                 String message = "Exception when uploading image with id " + key +
                         "\n   Receipt handle:      " + receiptHandle +
@@ -151,7 +153,7 @@ public class ImageProcessingService {
         return ImageIO.read(s3ObjectInputStream);
     }
 
-    private void putImageToS3(BufferedImage image, String key) throws AmazonServiceException, IOException, IllegalArgumentException, OutOfMemoryError {
+    private void putImageToS3(BufferedImage image, String key, int[] dimensions) throws AmazonServiceException, IOException, IllegalArgumentException, OutOfMemoryError {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         ImageIO.write(image, getImageExtension(key), byteArrayOutputStream);
 
@@ -160,7 +162,11 @@ public class ImageProcessingService {
         }
         else {
             ObjectMetadata objectMetadata = new ObjectMetadata();
+            Map<String, String> metadata = new HashMap<>();
+            metadata.put("width", Integer.toString(dimensions[0]));
+            metadata.put("height", Integer.toString(dimensions[1]));
             objectMetadata.setContentLength(byteArrayOutputStream.size());
+            objectMetadata.setUserMetadata(metadata);
             InputStream inputStream = new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
             amazonS3Client.putObject(bucket, key, inputStream, objectMetadata);
         }

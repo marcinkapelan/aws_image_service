@@ -46,9 +46,11 @@ class App extends Component {
                             thumbnailWidth: 400,
                             thumbnailHeight: 300,
                             isSelected: false,
-                            caption: name + " Size: " + Math.floor(item.size / 1024) + "KB",
+                            caption: name + " Size: " + Math.floor(item.size / 1024) + "KB" + " Resolution: " + item.width + " x " + item.height,
                             size: item.size,
-                            fullName: fullName
+                            fullName: fullName,
+                            width: item.width,
+                            height: item.height,
                         }
 
                         this.setState({
