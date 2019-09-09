@@ -146,44 +146,85 @@ class App extends Component {
     };
 
     onUploadClickHandler = event => {
+        const maxPixels = 20000000;
+
         if (this.state.selectedFiles == null) {
             alert("No file has been chosen");
         }
         else {
+            let validImagesGetPromises = [];
             let presignedPostPromises = [];
             let postImageToS3Promises = [];
-            for (let i = 0; i < this.state.selectedFiles.length; i++) {
-                presignedPostPromises.push(axios.get(baseUrl + "/presignedpost", {
-                    params: {
-                        fileName: this.state.selectedFiles[i].name
-                    }
-                }));
-            }
-            axios.all(presignedPostPromises)
-                .then(responses => {
-                    responses.forEach((response) => {
-                        let file;
-                        for (let i = 0; i < this.state.selectedFiles.length; i++) {
-                            var responseFileName = response.data.fields.key;
-                            var responseShortFileName = responseFileName.substring(responseFileName.indexOf('_') + 1);
-                            if (responseShortFileName === this.state.selectedFiles[i].name) {
-                                file = this.state.selectedFiles[i];
+
+            Array.from(this.state.selectedFiles).forEach((file) => {
+                validImagesGetPromises.push(new Promise((resolve, reject) => {
+                    try {
+                        let image = new Image();
+                        image.addEventListener('load', () => {
+                            try {
+                                const width  = image.naturalWidth,
+                                    height = image.naturalHeight;
+
+                                window.URL.revokeObjectURL(image.src);
+                                if (width * height <= maxPixels) {
+                                    return resolve({width, height, file})
+                                }
+                                else {
+                                    throw file.name + " has resolution " + (width * height) / 1e6 + "MP. Maximum supported: " + maxPixels / 1e6 + "MP";
+                                }
                             }
-                        }
-                        this.addPostImageToS3Promise(response.data, file, postImageToS3Promises)
-                    });
-                    axios.all(postImageToS3Promises)
-                        .then((responses) => {
-                            alert("Upload successful");
-                            this.fetchImageUrlsFromS3();
+                            catch (error) {
+                                reject(error);
+                            }
+                        });
+                        image.src = window.URL.createObjectURL(file)
+                    }
+                    catch (error) {
+                        return reject(error)
+                    }
+                }))
+            });
+
+            Promise.all(validImagesGetPromises)
+                .then((validImages) => {
+                    validImages.forEach((image) => {
+                        presignedPostPromises.push(axios.get(baseUrl + "/presignedpost", {
+                            params: {
+                                fileName: image.file.name,
+                                width: image.width,
+                                height: image.height,
+                            }
+                        }));
+                    })
+                    axios.all(presignedPostPromises)
+                        .then(responses => {
+                            responses.forEach((response) => {
+                                let file;
+                                validImages.forEach((validImage) => {
+                                    let responseFileName = response.data.fields.key;
+                                    let responseShortFileName = responseFileName.substring(responseFileName.indexOf('_') + 1);
+                                    if (responseShortFileName === validImage.file.name) {
+                                        file = validImage.file;
+                                    }
+                                });
+                                this.addPostImageToS3Promise(response.data, file, postImageToS3Promises)
+                            });
+                            axios.all(postImageToS3Promises)
+                                .then((responses) => {
+                                    alert("Upload successful");
+                                    this.fetchImageUrlsFromS3();
+                                })
+                                .catch((error) => {
+                                    alert("Error uploading file:\n" + error);
+                                })
                         })
-                        .catch((error) => {
-                            alert("Error uploading file:\n" + error);
-                        })
+                        .catch(error => {
+                            alert("Error fetching presigned post data:\n" + error);
+                            console.log(error);
+                        });
                 })
-                .catch(error => {
-                    alert("Error fetching presigned post data:\n" + error);
-                    console.log(error);
+                .catch((error) => {
+                    alert(error);
                 });
         }
     };
@@ -258,7 +299,7 @@ class App extends Component {
             <div className="container">
                 <div className="row">
                     <div className="col-md-auto mt-1">
-                        <input type = "file" name = "file" onChange = {this.onFilesChangeHandler} multiple/>
+                        <input type = "file" name = "file" onChange = {this.onFilesChangeHandler} multiple accept=".jpg,.png,.bmp,.gif"/>
                     </div>
                     <div className="col-md-2 mt-1 ml-md-5">
                         <button type="button" className="btn btn-success" onClick = {this.onUploadClickHandler}>Upload</button>
