@@ -3,10 +3,7 @@ package pl.psoir.awsservice.controller;
 import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.iterable.S3Objects;
-import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
-import com.amazonaws.services.s3.model.ListObjectsV2Request;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.s3control.model.S3ObjectMetadata;
 import org.apache.http.entity.ContentType;
 import org.json.JSONArray;
@@ -83,11 +80,12 @@ public class S3Controller {
         S3Objects.inBucket(amazonS3Client, bucket).forEach((S3ObjectSummary objectSummary) -> {
             String fileName = objectSummary.getKey();
             Long fileSize = objectSummary.getSize();
+            Map<String, String> customMetadata = amazonS3Client.getObjectMetadata(bucket, objectSummary.getKey()).getUserMetadata();
             GeneratePresignedUrlRequest generatePresignedUrlRequest = new GeneratePresignedUrlRequest(bucket, fileName)
                     .withMethod(HttpMethod.GET)
                     .withExpiration(generateExpirationDate(1200000)); //20 minutes
             URL url = amazonS3Client.generatePresignedUrl(generatePresignedUrlRequest);
-            urls.put(new JSONObject()
+            urls.put(new JSONObject(customMetadata)
                     .put("url", url)
                     .put("size", fileSize)
             );
