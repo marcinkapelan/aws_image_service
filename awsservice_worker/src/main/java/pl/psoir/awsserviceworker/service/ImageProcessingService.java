@@ -31,6 +31,8 @@ public class ImageProcessingService {
 
     private static final Logger logger = LoggerFactory.getLogger(ImageProcessingService.class);
 
+    private static final int MAX_OUTPUT_PIXELS = 20000000;
+
     @Autowired
     private AmazonS3 amazonS3Client;
 
@@ -178,12 +180,15 @@ public class ImageProcessingService {
     }
 
     /*
-    This method determines if calculated dimensions multiplied by each other and samples per pixel don't exceed BufferedImage Integer.MAX_VALUE limit.
+    This method determines if either calculated dimensions multiplied by each other and by samples per pixel
+    don't exceed BufferedImage Integer.MAX_VALUE limit or calculated dimensions multiplied by each other don't
+    exceed MAX_OUTPUT_PIXELS constant.
     If so, step by step it reduces their size until they don't exceed the limit
      */
     private int[] adjustScaleRatio(int scaledWidth, int scaledHeight, int samplesPerPixel) {
         while (true) {
-            if ((long) scaledWidth * scaledHeight * samplesPerPixel > Integer.MAX_VALUE) {
+            if ((long) scaledWidth * scaledHeight * samplesPerPixel > Integer.MAX_VALUE
+                    || (long) scaledWidth * scaledHeight > MAX_OUTPUT_PIXELS) {
                 scaledWidth = ((int)(scaledWidth / 1.05) > 0) ? ((int)(scaledWidth / 1.05)) : 1;
                 scaledHeight = ((int)(scaledHeight / 1.05) > 0) ? ((int)(scaledHeight / 1.05)) : 1;
             }
