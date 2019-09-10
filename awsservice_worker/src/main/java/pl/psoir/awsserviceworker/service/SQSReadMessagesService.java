@@ -7,14 +7,11 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -26,11 +23,14 @@ public class SQSReadMessagesService {
     @Value("${aws.sqs.queue}")
     private String queue;
 
-    @Autowired
-    private AmazonSQS amazonSQSClient;
+    private final AmazonSQS amazonSQSClient;
 
-    @Autowired
-    private ImageProcessingService imageProcessingService;
+    private final ImageProcessingService imageProcessingService;
+
+    public SQSReadMessagesService(AmazonSQS amazonSQSClient, ImageProcessingService imageProcessingService) {
+        this.amazonSQSClient = amazonSQSClient;
+        this.imageProcessingService = imageProcessingService;
+    }
 
     @Scheduled(fixedDelay = 5000L)
     public void poolQueue() {

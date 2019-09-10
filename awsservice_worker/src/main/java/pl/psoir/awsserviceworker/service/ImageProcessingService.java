@@ -11,7 +11,6 @@ import com.amazonaws.services.sqs.AmazonSQS;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -33,20 +32,23 @@ public class ImageProcessingService {
 
     private static final int MAX_OUTPUT_PIXELS = 20000000;
 
-    @Autowired
-    private AmazonS3 amazonS3Client;
+    private final AmazonS3 amazonS3Client;
 
-    @Autowired
-    private AmazonSQS amazonSQSClient;
+    private final AmazonSQS amazonSQSClient;
 
-    @Autowired
-    private AmazonDynamoDB amazonDynamoDBClient;
+    private final AmazonDynamoDB amazonDynamoDBClient;
 
     @Value("${aws.s3.bucket}")
     private String bucket;
 
     @Value("${aws.sqs.queue}")
     private String queue;
+
+    public ImageProcessingService(AmazonS3 amazonS3Client, AmazonSQS amazonSQSClient, AmazonDynamoDB amazonDynamoDBClient) {
+        this.amazonS3Client = amazonS3Client;
+        this.amazonSQSClient = amazonSQSClient;
+        this.amazonDynamoDBClient = amazonDynamoDBClient;
+    }
 
     @Async
     public void scaleImages(float widthRatio, float heightRatio, List<String> keys, String receiptHandle) {

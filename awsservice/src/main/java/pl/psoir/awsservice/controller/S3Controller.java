@@ -4,13 +4,10 @@ import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.iterable.S3Objects;
 import com.amazonaws.services.s3.model.*;
-import com.amazonaws.services.s3control.model.S3ObjectMetadata;
-import org.apache.http.entity.ContentType;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +16,6 @@ import pl.psoir.awsservice.utils.S3Utils;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URL;
-import java.net.URLConnection;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
@@ -30,8 +26,7 @@ public class S3Controller {
 
     private static final Logger logger = LoggerFactory.getLogger(S3Controller.class);
 
-    @Autowired
-    private AmazonS3 amazonS3Client;
+    private final AmazonS3 amazonS3Client;
 
     @Value("${aws.s3.bucket}")
     private String bucket;
@@ -44,6 +39,10 @@ public class S3Controller {
 
     @Value("${aws.s3.region}")
     private String region;
+
+    public S3Controller(AmazonS3 amazonS3Client) {
+        this.amazonS3Client = amazonS3Client;
+    }
 
     //Doesn't seem to work for delete requests..
     @RequestMapping(method= RequestMethod.GET, value="/presignedurl")

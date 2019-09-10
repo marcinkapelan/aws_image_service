@@ -12,7 +12,6 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,18 +32,20 @@ public class SQSController {
 
     private static final Logger logger = LoggerFactory.getLogger(SQSController.class);
 
-    @Autowired
-    private AmazonSQS amazonSQSClient;
+    private final AmazonSQS amazonSQSClient;
 
-    @Autowired
-    private AmazonDynamoDB amazonDynamoDBClient;
+    private final AmazonDynamoDB amazonDynamoDBClient;
 
     @Value("${aws.sqs.queue}")
     private String queue;
 
+    public SQSController(AmazonSQS amazonSQSClient, AmazonDynamoDB amazonDynamoDBClient) {
+        this.amazonSQSClient = amazonSQSClient;
+        this.amazonDynamoDBClient = amazonDynamoDBClient;
+    }
+
     @RequestMapping(method= RequestMethod.POST, value="/queue")
     public ResponseEntity<?> postToQueue(@RequestBody String messages) {
-        //SendMessageBatchRequestEntry[] sendMessageBatchRequestEntries;
         List<SendMessageBatchRequestEntry> sendMessageBatchRequestEntries;
 
         try {
