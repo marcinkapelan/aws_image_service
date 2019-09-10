@@ -37,7 +37,7 @@ class App extends Component {
             .then((response) => {
                 console.log(response);
                 response.data.forEach((item) => {
-                        let fullName = decodeURI(item.url.match(".amazonaws.com\/(.*)\\?X-Amz-Algorithm")[1]);
+                        let fullName = App.extractFileNameFromPresignedUrl(item.url);
                         let name = fullName.substring(fullName.indexOf("_") + 1);
 
                         let imageData = {
@@ -245,32 +245,49 @@ class App extends Component {
         let zip = new JSZip();
         let name = "images.zip";
 
+        let presignedUrlPromises = [];
         let imageDownloadPromises = [];
 
+        /*
+        Workaround for a bug (or feature) specific to Chromium based browsers related with caching CORS responses.
+        Src of an image can't be used twice for consecutive HTTP and XHR request. New pre-signed url has to be used.
+        More info at https://serverfault.com/a/856948
+        */
         this.state.images.forEach((image) => {
             if (image.isSelected) {
-                imageDownloadPromises.push(new Promise((resolve, reject) => JSZipUtils.getBinaryContent(image.src, (err, data) => {
-                    if(err) {
-                        reject(err);
+                presignedUrlPromises.push(axios.get(baseUrl + "/presignedurl", {
+                    params: {
+                        fileName: image.fullName,
+                        httpMethod: "GET"
                     }
-                    else{
-                        zip.file(image.fullName, data,  {binary:true});
-                        resolve();
-                    }
-                })));
+                }));
             }
         });
 
-        Promise.all(imageDownloadPromises)
-            .then(() => {
-                zip.generateAsync({type:'blob'})
-                    .then((content) => {
-                        saveAs(content, name);
-                    });
-            })
-            .catch((error) => {
-                alert("Error downloading files:\n" + error)
-            })
+        axios.all(presignedUrlPromises)
+            .then((responses) => {
+                responses.forEach((response) => {
+                    imageDownloadPromises.push(new Promise((resolve, reject) => JSZipUtils.getBinaryContent(response.data, (err, data) => {
+                        if(err) {
+                            reject(err);
+                        }
+                        else{
+                            zip.file(App.extractFileNameFromPresignedUrl(response.data), data,  {binary:true});
+                            resolve();
+                        }
+                    })));
+                });
+                Promise.all(imageDownloadPromises)
+                    .then(() => {
+                        zip.generateAsync({type:'blob'})
+                            .then((content) => {
+                                saveAs(content, name);
+                            });
+                    })
+                    .catch((error) => {
+                        alert("Error downloading files:\n" + error)
+                    })
+            });
     };
 
     onDeleteClickHandler = () => {
@@ -295,6 +312,10 @@ class App extends Component {
             });
 
     };
+
+    static extractFileNameFromPresignedUrl(url) {
+        return decodeURI(url.match(".amazonaws.com\/(.*)\\?X-Amz-Algorithm")[1]);
+    }
 
     render() {
         return (
