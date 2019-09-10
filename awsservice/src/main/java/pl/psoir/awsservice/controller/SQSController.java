@@ -1,6 +1,6 @@
 package pl.psoir.awsservice.controller;
 
-import com.amazonaws.HttpMethod;
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper;
 import com.amazonaws.services.sqs.AmazonSQS;
@@ -19,8 +19,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import pl.psoir.awsservice.model.DebugData;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 
 @RestController
@@ -40,16 +44,13 @@ public class SQSController {
 
     @RequestMapping(method= RequestMethod.POST, value="/queue")
     public ResponseEntity<?> postToQueue(@RequestBody String messages) {
-        SendMessageBatchRequestEntry[] sendMessageBatchRequests;
+        //SendMessageBatchRequestEntry[] sendMessageBatchRequestEntries;
+        List<SendMessageBatchRequestEntry> sendMessageBatchRequestEntries;
 
         try {
             JSONArray messagesJson = new JSONArray(messages);
-
-            sendMessageBatchRequests = new SendMessageBatchRequestEntry[messagesJson.length()];
-            for (int i = 0; i < messagesJson.length(); i++) {
-                sendMessageBatchRequests[i] = new SendMessageBatchRequestEntry(UUID.randomUUID().toString(),
-                        messagesJson.getJSONObject(i).toString());
-            }
+            sendMessageBatchRequestEntries = IntStream.range(0, messagesJson.length()).mapToObj(i -> new SendMessageBatchRequestEntry(UUID.randomUUID().toString(),
+                    messagesJson.getJSONObject(i).toString())).collect(Collectors.toList());
         }
         catch (JSONException e) {
             String message = "Exception when parsing messages into SendMessageBatchRequestEntry array" +
@@ -61,26 +62,43 @@ public class SQSController {
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
+        boolean failedDeliveries = false;
         try {
             String queueUrl = amazonSQSClient.getQueueUrl(queue).getQueueUrl();
-            SendMessageBatchRequest sendMessageBatchRequest = new SendMessageBatchRequest()
-                    .withQueueUrl(queueUrl)
-                    .withEntries(sendMessageBatchRequests);
-            SendMessageBatchResult result = amazonSQSClient.sendMessageBatch(sendMessageBatchRequest);
-            if (result.getFailed().size() > 0) {
-                throw new RuntimeException("Failed sending" + result.getFailed().size() + "messages");
+
+            //Batch request can consist of up to 10 messages, slice array
+            List<List<SendMessageBatchRequestEntry>> sendMessageBatchRequestEntriesList = new ArrayList<>();
+            List<SendMessageBatchRequestEntry> slice = new ArrayList<>();
+            for (int i = 0; i < sendMessageBatchRequestEntries.size(); i++) {
+                if (i % 10 == 0) {
+                    slice = new ArrayList<>();
+                    sendMessageBatchRequestEntriesList.add(slice);
+                }
+                slice.add(sendMessageBatchRequestEntries.get(i));
             }
-            HttpStatus httpStatus = (result.getFailed().size() > 0) ? HttpStatus.INTERNAL_SERVER_ERROR : HttpStatus.OK;
+
+            for (List<SendMessageBatchRequestEntry> _slice : sendMessageBatchRequestEntriesList) {
+                SendMessageBatchRequest sendMessageBatchRequest = new SendMessageBatchRequest()
+                        .withQueueUrl(queueUrl)
+                        .withEntries(_slice);
+                SendMessageBatchResult result = amazonSQSClient.sendMessageBatch(sendMessageBatchRequest);
+                if (result.getFailed().size() > 0) {
+                    failedDeliveries = true;
+                }
+            }
         }
-        catch (Exception e) {
+        catch (AmazonClientException e) {
             String message = "Exception when sending messages to queue" +
                     "\n   Messages:       \n" +
                     messages +
                     "\n   Additional info:\n" + ExceptionUtils.getStackTrace(e);
             logger.error(message);
             new DynamoDBMapper(amazonDynamoDBClient).save(new DebugData(new Date(), this.getClass().getSimpleName(), DebugData.Type.ERROR, message));
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<>("One or more messages failed to be delivered", HttpStatus.INTERNAL_SERVER_ERROR);
         }
-        return new ResponseEntity<>(HttpStatus.OK);
+        if (!failedDeliveries) {
+            return new ResponseEntity<>(HttpStatus.OK);
+        }
+        return new ResponseEntity<>("One or more messages failed to be delivered", HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }
